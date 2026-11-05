@@ -4,7 +4,7 @@
 
 Borrow Buddy is a community borrowing and lending platform. People list things they rarely use, neighbours find them, request to borrow them for specific dates, and both sides track the item until it's returned.
 
-> 🚧 **Status:** Phase 1 (project foundation) complete. See [Roadmap](#roadmap).
+> 🚧 **Status:** Phases 1–3 complete (foundation, public pages, database). See [Roadmap](#roadmap).
 
 ---
 
@@ -52,7 +52,10 @@ borrow-buddy/
 │   │   ├── constants.ts      # Categories, conditions, request statuses
 │   │   └── utils.ts          # Small helpers (cn for class names)
 │   └── proxy.ts              # Runs before each request (session + route guard)
-├── supabase/migrations/      # Database schema as SQL (added in Phase 3)
+├── supabase/
+│   ├── migrations/           # Database schema, security and workflow as SQL
+│   ├── setup.sql             # All migrations in one file (for the SQL Editor)
+│   └── tests/                # Database security tests (npm run test:db)
 ├── .env.example              # Template for your secret settings
 └── components.json           # shadcn/ui config (lets `npx shadcn add` work)
 ```
@@ -85,7 +88,38 @@ The public pages work before Supabase is set up. Login and data features need th
 
 ### Supabase setup & database migrations
 
-_Added in Phase 3._
+1. Create a free project at [supabase.com](https://supabase.com) (region: **North EU (Stockholm)**).
+2. **Create the database:** open **SQL Editor → New query**, paste the whole of [`supabase/setup.sql`](supabase/setup.sql) and click **Run**. This creates all tables, security rules, workflow functions and photo buckets.
+3. **Auth settings:** **Authentication → URL Configuration**
+   - *Site URL:* your live site, e.g. `https://borrow-buddy.vercel.app`
+   - *Redirect URLs:* add `http://localhost:3000/**` and `https://*.vercel.app/**`
+4. Copy the **Project URL** and **Publishable key** into `.env.local` (locally) and into **Vercel → Project → Settings → Environment Variables** (live site), then redeploy.
+5. *Optional:* daily "due back tomorrow" reminders. Enable the `pg_cron` extension, then run [`supabase/optional/schedule_reminders.sql`](supabase/optional/schedule_reminders.sql).
+
+**How the database is organised** (`supabase/migrations/`, run in order):
+
+| Migration | What it does |
+| --- | --- |
+| `…_schema.sql` | 8 tables (`profiles`, `items`, `item_images`, `borrowing_requests`, `borrowings`, `notifications`, `reviews`, `reports`), constraints, indexes, auto-created profiles on sign-up |
+| `…_security.sql` | Column grants and Row Level Security policies for every table |
+| `…_workflow.sql` | Borrowing workflow functions (request → approve/reject → return → complete → review) and notifications |
+| `…_storage.sql` | Photo buckets; members can only upload into their own folder |
+
+Key safety rules, enforced by Postgres itself:
+- An item can never be lent twice for overlapping dates (exclusion constraint).
+- Requests, loans and reviews can only be changed through the workflow functions, which check who is calling.
+- People see only their own requests, loans, notifications and reports. Email addresses stay in Supabase Auth and are never public.
+- Members can't make themselves moderators or mark listings as samples.
+
+After changing a migration, run `npm run db:bundle` to regenerate `supabase/setup.sql`.
+
+### Testing the database
+
+```bash
+npm run test:db
+```
+
+Runs every migration on an in-memory Postgres ([PGlite](https://pglite.dev)) and runs 61 checks as different users: visitors, borrowers, lenders and moderators. It covers both what each person may do and what must be refused.
 
 ### Deployment (Vercel)
 
@@ -99,12 +133,14 @@ _Added in Phase 7._
 | `npm run build` | Production build (also type-checks) |
 | `npm run start` | Run the production build locally |
 | `npm run lint` | Check code style and common mistakes |
+| `npm run test:db` | Test database security rules and the borrowing workflow |
+| `npm run db:bundle` | Rebuild `supabase/setup.sql` from the migrations |
 
 ## Roadmap
 
 - [x] **Phase 1:** Project foundation, design system, Supabase helpers
-- [ ] **Phase 2:** Homepage, Explore, item details, About, Contact
-- [ ] **Phase 3:** Database schema, migrations, Row Level Security, storage
+- [x] **Phase 2:** Homepage, Explore, item details, About, Contact
+- [x] **Phase 3:** Database schema, migrations, Row Level Security, storage
 - [ ] **Phase 4:** Profiles, listings, search and filters, borrowing workflow
 - [ ] **Phase 5:** Dashboard, notifications, history
 - [ ] **Phase 6:** Testing, accessibility and performance checks
