@@ -1,0 +1,148 @@
+/*
+  Borrow Buddy design system
+  ---------------------------
+  1. Brand colours live here as CSS variables ("design tokens").
+  2. The @theme block turns them into Tailwind classes,
+     e.g. --color-forest becomes bg-forest, text-forest, border-forest.
+  Change a colour here once and it updates across the whole app.
+*/
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  /* Brand palette (from the brief) */
+  --forest: #174b3a; /* headlines, primary buttons */
+  --fresh: #6baf83; /* "available", success */
+  --cream: #f8f7f1; /* page background */
+  --white: #ffffff; /* cards, inputs */
+  --charcoal: #242b29; /* body text */
+  --tangerine: #f2a65a; /* tags & stamps only — fill, never text on cream */
+
+  /* Supporting shades derived from the palette */
+  --forest-deep: #0f3528;
+  --fresh-soft: #e3f0e6;
+  --tangerine-soft: #fbe8d3;
+  --stone: #5b6460; /* secondary text (passes AA on cream & white) */
+  --line: #e2e0d6; /* borders */
+  --danger: #b23a2c;
+
+  /* Semantic tokens used by the UI components (shadcn/ui naming) */
+  --background: var(--cream);
+  --foreground: var(--charcoal);
+  --card: var(--white);
+  --card-foreground: var(--charcoal);
+  --popover: var(--white);
+  --popover-foreground: var(--charcoal);
+  --primary: var(--forest);
+  --primary-foreground: var(--white);
+  --secondary: var(--fresh-soft);
+  --secondary-foreground: var(--forest);
+  --muted: #efede4;
+  --muted-foreground: var(--stone);
+  --accent: var(--tangerine-soft);
+  --accent-foreground: var(--charcoal);
+  --destructive: var(--danger);
+  --border: var(--line);
+  --input: #d6d3c6;
+  --ring: var(--forest);
+
+  /* Corner radius scale: different jobs get different corners */
+  --radius: 0.75rem;
+}
+
+@theme inline {
+  --color-forest: var(--forest);
+  --color-forest-deep: var(--forest-deep);
+  --color-fresh: var(--fresh);
+  --color-fresh-soft: var(--fresh-soft);
+  --color-cream: var(--cream);
+  --color-charcoal: var(--charcoal);
+  --color-tangerine: var(--tangerine);
+  --color-tangerine-soft: var(--tangerine-soft);
+  --color-stone: var(--stone);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --radius-sm: calc(var(--radius) - 4px); /* tags, small chips */
+  --radius-md: calc(var(--radius) - 2px); /* inputs */
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 8px); /* item cards */
+  --radius-2xl: calc(var(--radius) + 16px); /* big panels */
+
+  /* Fonts are self-hosted via @fontsource (no Google request at build time) */
+  --font-display: "Bricolage Grotesque Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Plus Jakarta Sans Variable", ui-sans-serif, system-ui, sans-serif;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-size: 1rem;
+    line-height: 1.6;
+  }
+  /* Type scale (roughly a 1.25 ratio). Headlines use the display face. */
+  h1,
+  h2,
+  h3,
+  h4 {
+    @apply font-display text-forest;
+    font-optical-sizing: auto;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+    text-wrap: balance;
+  }
+  h1 {
+    font-size: clamp(2.5rem, 6vw, 4.5rem);
+    font-weight: 750;
+  }
+  h2 {
+    font-size: clamp(1.875rem, 3.5vw, 2.75rem);
+    font-weight: 700;
+  }
+  h3 {
+    font-size: 1.375rem;
+    font-weight: 650;
+    letter-spacing: -0.01em;
+  }
+  p {
+    text-wrap: pretty;
+  }
+  :focus-visible {
+    outline: 2px solid var(--forest);
+    outline-offset: 2px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
