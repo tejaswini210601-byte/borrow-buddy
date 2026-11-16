@@ -2,20 +2,26 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
-import { CalendarDays, ChevronLeft, Clock, Flag, Info, MapPin, ShieldCheck } from "lucide-react";
+import { CalendarDays, CheckCircle2, ChevronLeft, Clock, Flag, Info, MapPin, Pencil, ShieldCheck } from "lucide-react";
 import { AvailabilityTag } from "@/components/items/availability-tag";
 import { ItemCard } from "@/components/items/item-card";
 import { ItemGallery } from "@/components/items/item-gallery";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { ListingControls } from "@/components/items/listing-controls";
+import { RequestForm } from "@/components/items/request-form";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CATEGORIES, CONDITIONS, labelFor } from "@/lib/constants";
 import { formatDayMonth, formatMonthYear, initials } from "@/lib/format";
-import { getAllItemIds, getItem, getSimilarItems } from "@/lib/items";
+import { getCurrentUser, type CurrentUser } from "@/lib/auth";
+import { getBookedRanges, getItemAsViewer } from "@/lib/dashboard";
+import { getAllItemIds, getItem, getSimilarItems, isUuid } from "@/lib/items";
+import { isSupabaseConfigured } from "@/lib/supabase/env";
 import type { Item } from "@/lib/types";
 
 type Params = Promise<{ id: string }>;
+type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
 /** Prerender a page for every known listing at build time (fast to open). */
 export async function generateStaticParams() {
@@ -27,7 +33,7 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   return item ? { title: item.title, description: item.description } : { title: "Item not found" };
 }
 
-export default function ItemPage({ params }: { params: Params }) {
+export default function ItemPage({ params, searchParams }: { params: Params; searchParams: SearchParams }) {
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-12">
       <Link href="/explore" className="inline-flex items-center gap-1 text-sm font-semibold text-forest hover:underline">
@@ -35,19 +41,30 @@ export default function ItemPage({ params }: { params: Params }) {
         Back to all items
       </Link>
       <Suspense fallback={<ItemSkeleton />}>
-        <ItemDetails params={params} />
+        <ItemDetails params={params} searchParams={searchParams} />
       </Suspense>
     </div>
   );
 }
 
-async function ItemDetails({ params }: { params: Params }) {
-  const item = await getItem((await params).id);
+async function ItemDetails({ params, searchParams }: { params: Params; searchParams: SearchParams }) {
+  const { id } = await params;
+  // Real listings are read fresh, as the person viewing them: the database
+  // shows everyone active listings, and owners their paused ones too.
+  // (Sample listings come from the sample data.)
+  const item = isUuid(id) && isSupabaseConfigured ? await getItemAsViewer(id) : await getItem(id);
   if (!item) notFound();
-  const similar = await getSimilarItems(item);
+  const [similar, viewer, sp] = await Promise.all([getSimilarItems(item), getCurrentUser(), searchParams]);
+  const isOwner = viewer?.id === item.lender.id;
 
   return (
     <>
+      {(sp.listed || sp.saved) && isOwner && (
+        <p role="status" className="mt-6 flex items-center gap-2 rounded-xl bg-fresh-soft p-4 text-sm font-semibold text-forest">
+          <CheckCircle2 className="size-5 shrink-0" aria-hidden />
+          {sp.listed ? "Your item is listed! People nearby can now find it and send requests." : "Changes saved."}
+        </p>
+      )}
       <div className="mt-6 grid gap-10 lg:grid-cols-[1.15fr_1fr] lg:gap-14">
         <ItemGallery images={item.images} title={item.title} category={item.category}>
           <AvailabilityTag item={item} className="absolute top-4 left-4 text-sm" />
@@ -94,7 +111,7 @@ async function ItemDetails({ params }: { params: Params }) {
             </div>
           )}
 
-          <RequestPanel item={item} />
+          {isOwner ? <OwnerPanel item={item} /> : <RequestPanel item={item} viewer={viewer} />}
           <LenderCard item={item} />
 
           <Link
@@ -135,32 +152,74 @@ function Detail({ label, children }: { label: string; children: React.ReactNode 
 }
 
 /**
- * Where borrowing starts. Requests need an account, so for now this sends
- * people to log in. In Phase 4 logged-in users see a date picker here and
- * the request is saved to the database.
+ * Where borrowing starts. Guests are asked to log in; members get the
+ * request form; sample listings explain they can't be borrowed.
  */
-function RequestPanel({ item }: { item: Item }) {
+async function RequestPanel({ item, viewer }: { item: Item; viewer: CurrentUser | null }) {
   const next = encodeURIComponent(`/items/${item.id}#request`);
+  const paused = item.availability === "paused";
   return (
     <div id="request" className="scroll-mt-24 rounded-2xl bg-forest p-5 text-white sm:p-6">
       <div className="flex items-start gap-3">
         <CalendarDays className="mt-1 size-5 shrink-0 text-tangerine" aria-hidden />
         <div className="flex flex-col gap-1">
           <p className="font-display text-xl font-semibold">
-            {item.availability === "available" ? "Want to borrow this?" : "Need it after it's back?"}
+            {paused ? "Not lending right now" : item.availability === "available" ? "Want to borrow this?" : "Need it after it's back?"}
           </p>
           <p className="text-sm text-white/80">
-            Choose your dates and send a request. {item.lender.displayName} decides whether to approve it.
+            {item.isSample
+              ? "This is a sample listing to show how Borrow Buddy works, so it can't be borrowed."
+              : paused
+                ? `${item.lender.displayName} has paused this listing.`
+                : `Choose your dates and send a request. ${item.lender.displayName} decides whether to approve it.`}
           </p>
         </div>
       </div>
-      <Button asChild size="lg" className="mt-5 w-full bg-tangerine text-charcoal hover:bg-[#f5b878]">
-        <Link href={`/login?next=${next}`}>Log in to request this item</Link>
-      </Button>
+
+      <div className="mt-5">
+        {item.isSample || paused ? (
+          <Button asChild size="lg" variant="secondary" className="w-full">
+            <Link href="/explore">Find something similar</Link>
+          </Button>
+        ) : viewer ? (
+          <RequestForm
+            itemId={item.id}
+            lenderName={item.lender.displayName}
+            maxDays={item.maxDays}
+            today={new Date().toISOString().slice(0, 10)}
+            booked={await getBookedRanges(item.id)}
+          />
+        ) : (
+          <Button asChild size="lg" className="w-full bg-tangerine text-charcoal hover:bg-[#f5b878]">
+            <Link href={`/login?next=${next}`}>Log in to request this item</Link>
+          </Button>
+        )}
+      </div>
       <p className="mt-3 flex items-center gap-1.5 text-xs text-white/70">
         <Clock className="size-3.5" aria-hidden />
         {item.maxDays ? `Up to ${item.maxDays} days per loan.` : "No time limit set by the lender."}
       </p>
+    </div>
+  );
+}
+
+/** What the lender sees on their own listing instead of the request form. */
+function OwnerPanel({ item }: { item: Item }) {
+  return (
+    <div className="flex flex-col gap-3 rounded-2xl border-2 border-forest/15 bg-fresh-soft/50 p-5">
+      <p className="font-display text-lg font-semibold text-forest">This is your listing</p>
+      <ListingControls itemId={item.id} status={item.availability === "paused" ? "paused" : "active"} />
+      <div className="flex flex-wrap gap-2">
+        <Button asChild>
+          <Link href={`/items/${item.id}/edit`}>
+            <Pencil aria-hidden />
+            Edit listing
+          </Link>
+        </Button>
+        <Button asChild variant="outline">
+          <Link href="/dashboard/requests">See requests</Link>
+        </Button>
+      </div>
     </div>
   );
 }
@@ -170,11 +229,18 @@ function LenderCard({ item }: { item: Item }) {
   return (
     <div className="flex gap-4 rounded-xl border bg-card p-5">
       <Avatar className="size-12">
+        {l.avatarUrl && <AvatarImage src={l.avatarUrl} alt="" />}
         <AvatarFallback>{initials(l.displayName)}</AvatarFallback>
       </Avatar>
       <div className="flex min-w-0 flex-col gap-1">
         <p className="text-xs font-semibold text-stone">Lent by</p>
-        <p className="font-display text-lg font-semibold text-forest">{l.displayName}</p>
+        {item.isSample ? (
+          <p className="font-display text-lg font-semibold text-forest">{l.displayName}</p>
+        ) : (
+          <Link href={`/members/${l.id}`} className="font-display text-lg font-semibold text-forest hover:underline">
+            {l.displayName}
+          </Link>
+        )}
         {l.bio && <p className="text-sm text-charcoal/80">{l.bio}</p>}
         <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-stone">
           <span className="inline-flex items-center gap-1">

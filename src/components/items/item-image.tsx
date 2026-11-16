@@ -35,7 +35,7 @@ export function ItemImage({
     return (
       // Plain <img> works for any Supabase Storage URL without extra config.
       // eslint-disable-next-line @next/next/no-img-element
-      <img src={src} alt={alt} className={cn("size-full object-cover", className)} loading="lazy" />
+      <img src={src} alt={alt} className={cn("size-full object-cover", className)} loading="lazy" decoding="async" />
     );
   }
   const Icon = CATEGORIES.find((c) => c.value === category)?.icon ?? CATEGORIES[8].icon;

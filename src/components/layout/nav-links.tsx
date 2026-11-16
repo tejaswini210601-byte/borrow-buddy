@@ -18,12 +18,19 @@ export const NAV_LINKS = [
  * interactivity (knowing the current page, opening the mobile menu).
  */
 export function DesktopNav() {
-  const pathname = usePathname();
+  return <DesktopNavLinks pathname={usePathname()} />;
+}
+
+/**
+ * The links themselves. Also rendered with pathname="" as a placeholder
+ * while the current page is being worked out (see SiteHeader).
+ */
+export function DesktopNavLinks({ pathname }: { pathname: string }) {
   return (
     <nav aria-label="Main" className="hidden md:block">
       <ul className="flex items-center gap-1">
         {NAV_LINKS.map((l) => {
-          const active = !l.href.includes("#") && pathname.startsWith(l.href);
+          const active = pathname !== "" && !l.href.includes("#") && pathname.startsWith(l.href);
           return (
             <li key={l.href}>
               <Link
@@ -44,7 +51,7 @@ export function DesktopNav() {
   );
 }
 
-export function MobileNav() {
+export function MobileNav({ guestLinks }: { guestLinks?: React.ReactNode }) {
   const pathname = usePathname();
   // Remember which page the menu was opened on. Navigating to another page
   // changes `pathname`, so `open` becomes false automatically — no effect needed.
@@ -86,16 +93,22 @@ export function MobileNav() {
               ))}
             </ul>
           </nav>
-          <div className="mt-4 grid grid-cols-2 gap-2">
-            <Button asChild variant="outline">
-              <Link href="/login">Log in</Link>
-            </Button>
-            <Button asChild>
-              <Link href="/signup">Sign up</Link>
-            </Button>
-          </div>
+          {/* account buttons come from the server (they depend on the login) */}
+          {guestLinks}
         </div>
       )}
+    </div>
+  );
+}
+
+/** Placeholder for the mobile menu button while the page loads. */
+export function MobileNavPlaceholder() {
+  return (
+    <div className="md:hidden">
+      <Button variant="ghost" size="icon" disabled>
+        <Menu className="size-5" />
+        <span className="sr-only">Open menu</span>
+      </Button>
     </div>
   );
 }

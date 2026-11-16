@@ -1,14 +1,37 @@
 import type { Metadata } from "next";
-import { ComingSoon } from "@/components/shared/coming-soon";
+import Link from "next/link";
+import { Suspense } from "react";
+import { AuthCard } from "@/components/auth/auth-card";
+import { SignUpForm } from "@/components/auth/auth-forms";
+import { FormSkeleton } from "@/components/forms/form-skeleton";
 
 export const metadata: Metadata = { title: "Sign up" };
 
-// Placeholder until Phase 4 (authentication).
-export default function Page() {
+type SearchParams = Promise<Record<string, string | string[] | undefined>>;
+
+export default function SignUpPage({ searchParams }: { searchParams: SearchParams }) {
   return (
-    <ComingSoon
-      title="Sign up isn't open yet"
-      description="Accounts are being built. Soon you'll create a free account here to borrow and lend."
-    />
+    <AuthCard
+      tag="Free to join"
+      title="Create your account"
+      description="Borrow what you need from people nearby, and lend what you rarely use."
+      footer={
+        <>
+          Already have an account?{" "}
+          <Link href="/login" className="font-semibold text-forest hover:underline">
+            Log in
+          </Link>
+        </>
+      }
+    >
+      <Suspense fallback={<FormSkeleton fields={4} />}>
+        <Form searchParams={searchParams} />
+      </Suspense>
+    </AuthCard>
   );
+}
+
+async function Form({ searchParams }: { searchParams: SearchParams }) {
+  const sp = await searchParams;
+  return <SignUpForm next={typeof sp.next === "string" ? sp.next : undefined} />;
 }

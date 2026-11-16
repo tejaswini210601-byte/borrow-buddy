@@ -4,7 +4,7 @@
 
 Borrow Buddy is a community borrowing and lending platform. People list things they rarely use, neighbours find them, request to borrow them for specific dates, and both sides track the item until it's returned.
 
-> 🚧 **Status:** Phases 1–3 complete (foundation, public pages, database). See [Roadmap](#roadmap).
+> 🚧 **Status:** Phases 1–5 complete: accounts, listings with photos, the full borrowing workflow and the member dashboard all work. See [Roadmap](#roadmap).
 
 ---
 
@@ -60,6 +60,55 @@ borrow-buddy/
 └── components.json           # shadcn/ui config (lets `npx shadcn add` work)
 ```
 
+## Pages
+
+| Address | Who | What it does |
+| --- | --- | --- |
+| `/`, `/explore`, `/items/[id]`, `/about`, `/contact` | Everyone | Browse and search listings (real ones first, then labelled samples) |
+| `/signup`, `/login`, `/forgot-password`, `/reset-password` | Everyone | Accounts (Supabase Auth). `/auth/confirm` handles the links in emails |
+| `/members/[id]` | Everyone | Public profile: name, area, bio, ratings, reviews, listings. Never the email |
+| `/items/new`, `/items/[id]/edit` | Members | List an item with up to 6 photos; edit, pause, resume or delete it |
+| `/items/[id]` (logged in) | Members | Pick dates and send a borrow request; owners see their controls instead |
+| `/dashboard` | Members | Overview: counts and everything that needs your attention |
+| `/dashboard/listings` | Members | Your listings, with pending request counts |
+| `/dashboard/requests` | Members | Approve or decline requests for your items; cancel the ones you sent |
+| `/dashboard/borrowing`, `/dashboard/lending` | Members | Active loans; confirm returns (both people confirm) |
+| `/dashboard/history` | Members | Finished loans and 1–5 star reviews |
+| `/dashboard/notifications` | Members | In-app notifications (the bell in the header shows the unread count) |
+| `/dashboard/profile` | Members | Edit name, area, bio and profile photo |
+
+### The borrowing workflow
+
+```
+Borrower                         Lender
+──────────────────────────────── ────────────────────────────────
+Request dates ─────────────────► Approve (+ pickup details) or Decline
+   (can cancel while pending)     (overlapping requests auto-declined)
+          ◄──── Loan is active ────►
+"I've returned it" ────────────► "I got it back"
+          ◄── Completed when both confirm ──►
+Review the lender                Review the borrower
+```
+
+Every step is a database function (migration 3), called from the Server
+Actions in `src/lib/actions/`. The database checks who's asking and whether
+the step is allowed, so the rules can't be skipped from the browser.
+
+### How the code is organised (Phases 4–5)
+
+| Folder | What's in it |
+| --- | --- |
+| `src/lib/auth.ts` | `getCurrentUser()` / `requireUser()`: the one place that asks "who's logged in?" |
+| `src/lib/items.ts` | Public listing data. Cached for a few minutes and shared by all visitors |
+| `src/lib/dashboard.ts` | A member's own data (requests, loans, notifications). Never cached between people |
+| `src/lib/actions/` | Server Actions: `auth`, `items`, `borrowing`, `account` |
+| `src/lib/validation/` | Zod rules for every form (checked on the server) |
+| `src/components/dashboard/` | Request and loan cards, review form, dashboard tabs |
+
+Photos upload straight from the browser to Supabase Storage, into a folder
+named after the member's id (the storage rules enforce this). The form then
+sends only the photo paths, and the server checks they're in the member's folder.
+
 ## Getting started (local development)
 
 **Requirements:** [Node.js 20.9+](https://nodejs.org) and Git.
@@ -93,6 +142,7 @@ The public pages work before Supabase is set up. Login and data features need th
 3. **Auth settings:** **Authentication → URL Configuration**
    - *Site URL:* your live site, e.g. `https://borrow-buddy.vercel.app`
    - *Redirect URLs:* add `http://localhost:3000/**` and `https://*.vercel.app/**`
+     (the links in sign-up and password-reset emails go to `/auth/confirm` on your site)
 4. Copy the **Project URL** and **Publishable key** into `.env.local` (locally) and into **Vercel → Project → Settings → Environment Variables** (live site), then redeploy.
 5. *Optional:* daily "due back tomorrow" reminders. Enable the `pg_cron` extension, then run [`supabase/optional/schedule_reminders.sql`](supabase/optional/schedule_reminders.sql).
 
@@ -141,8 +191,8 @@ _Added in Phase 7._
 - [x] **Phase 1:** Project foundation, design system, Supabase helpers
 - [x] **Phase 2:** Homepage, Explore, item details, About, Contact
 - [x] **Phase 3:** Database schema, migrations, Row Level Security, storage
-- [ ] **Phase 4:** Profiles, listings, search and filters, borrowing workflow
-- [ ] **Phase 5:** Dashboard, notifications, history
+- [x] **Phase 4:** Accounts, profiles, listings with photos, search and filters, borrowing workflow
+- [x] **Phase 5:** Dashboard, notifications, history, reviews
 - [ ] **Phase 6:** Testing, accessibility and performance checks
 - [ ] **Phase 7:** Deployment to Vercel
 
