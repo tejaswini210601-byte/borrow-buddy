@@ -1,4 +1,5 @@
 import "server-only";
+import { connection } from "next/server";
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import type { Database } from "@/lib/database.types";
@@ -14,6 +15,10 @@ import { requireSupabaseEnv } from "./env";
  */
 export async function createClient() {
   const { url, key } = requireSupabaseEnv();
+  // connection() tells Next.js this only runs for a real request, never while
+  // pre-building pages. (The Supabase library reads the clock to check
+  // whether the login has expired, which can't happen ahead of time.)
+  await connection();
   const cookieStore = await cookies();
 
   return createServerClient<Database>(url, key, {
